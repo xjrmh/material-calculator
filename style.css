@@ -1,3 +1,7 @@
+:root {
+  --accent-color: #6200ee;
+}
+
 body {
   font-family: Arial, sans-serif;
   background: #f5f5f5;
@@ -44,11 +48,11 @@ body {
 }
 
 .btn.operator {
-  color: #6200ee;
+  color: var(--accent-color);
 }
 
 .btn.equals {
-  background: #6200ee;
+  background: var(--accent-color);
   color: #ffffff;
   grid-column: span 4;
 }
