@@ -1,24 +1,36 @@
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', () => {
   const display = document.getElementById('display');
   const buttons = document.querySelectorAll('.btn');
   let current = '';
   let operator = '';
   let operand = '';
 
-  // Define a list of accent colors to cycle through
+  // Define some accent colors to choose from
   const colors = ['#6200ee', '#1e88e5', '#e53935', '#43a047', '#ff9800', '#8e24aa', '#00bcd4'];
 
+  // Convert hex color to rgba with given alpha
+  function hexToRGBA(hex, alpha) {
+    hex = hex.replace('#', '');
+    const bigint = parseInt(hex, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+
+  // Randomly set accent color and update button styles and display background
   function setRandomAccentColor() {
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
-    // Update CSS variable
     document.documentElement.style.setProperty('--accent-color', randomColor);
-    // Also update operator button text color and equals button background directly
-    document.querySelectorAll('.btn.operator').forEach(opBtn => {
-      opBtn.style.color = randomColor;
+    document.querySelectorAll('.btn.operator').forEach(btn => {
+      btn.style.color = randomColor;
     });
-    const eqBtn = document.querySelector('.btn.equals');
-    if (eqBtn) {
-      eqBtn.style.background = randomColor;
+    const equalsBtn = document.querySelector('.btn.equals');
+    if (equalsBtn) {
+      equalsBtn.style.background = randomColor;
+    }
+    if (display) {
+      display.style.background = hexToRGBA(randomColor, 0.3);
     }
   }
 
@@ -30,18 +42,26 @@ document.addEventListener('DOMContentLoaded', function () {
         operator = '';
         operand = '';
         display.textContent = '0';
-      } else if (val === '=') {
+        return;
+      }
+      if (val === '=') {
         if (operator && operand !== '') {
-          let expression = operand + operator + current;
-          let result = eval(expression);
+          const expression = operand + operator + current;
+          let result;
+          try {
+            result = eval(expression);
+          } catch (e) {
+            result = 'Error';
+          }
           display.textContent = result;
           current = result.toString();
           operator = '';
           operand = '';
         }
-        // Change accent color when equals is pressed
         setRandomAccentColor();
-      } else if (['+', '-', '*', '/'].includes(val)) {
+        return;
+      }
+      if (['+', '-', '*', '/'].includes(val)) {
         if (current === '') {
           operand = display.textContent;
         } else {
@@ -49,18 +69,22 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         operator = val;
         current = '';
-      } else {
-        current += val;
-        display.textContent = current;
+        return;
       }
+      if (val === '.' && current.includes('.')) {
+        return;
+      }
+      current += val;
+      display.textContent = current;
     });
   });
 
-  // Handle Enter key on keyboard to trigger equals and color change
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      const equalsBtn = document.querySelector('[data-value="="]');
-      if (equalsBtn) equalsBtn.click();
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      const equalsBtn = document.querySelector('.btn.equals');
+      if (equalsBtn) {
+        equalsBtn.click();
+      }
     }
   });
 });
