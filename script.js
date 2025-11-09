@@ -10,7 +10,16 @@ document.addEventListener('DOMContentLoaded', function () {
 
   function setRandomAccentColor() {
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    // Update CSS variable
     document.documentElement.style.setProperty('--accent-color', randomColor);
+    // Also update operator button text color and equals button background directly
+    document.querySelectorAll('.btn.operator').forEach(opBtn => {
+      opBtn.style.color = randomColor;
+    });
+    const eqBtn = document.querySelector('.btn.equals');
+    if (eqBtn) {
+      eqBtn.style.background = randomColor;
+    }
   }
 
   buttons.forEach(btn => {
