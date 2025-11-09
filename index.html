@@ -7,9 +7,16 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="calculator">
-    <div id="display" class="display">0</div>
-    <div class="buttons">
+  <div class="calculator-container">
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="simple">Simple</button>
+      <button class="tab-btn" data-tab="scientific">Scientific</button>
+    </div>
+    
+    <div class="calculator active" id="simple-calc">
+      <div id="formula" class="formula">0</div>
+      <div id="display" class="display">0</div>
+      <div class="buttons">
       <button class="btn" data-value="7">7</button>
       <button class="btn" data-value="8">8</button>
       <button class="btn" data-value="9">9</button>
@@ -31,6 +38,56 @@
       <button class="btn operator" data-value="+">+</button>
 
       <button class="btn equals" data-value="=">=</button>
+    </div>
+    </div>
+
+    <div class="calculator" id="scientific-calc">
+      <div id="sci-formula" class="formula">0</div>
+      <div id="sci-display" class="display">0</div>
+      <div class="buttons">
+        <!-- First row -->
+        <button class="btn function" data-value="(">(</button>
+        <button class="btn function" data-value=")">)</button>
+        <button class="btn function" data-value="mc">mc</button>
+        <button class="btn function" data-value="m+">m+</button>
+        <button class="btn function" data-value="m-">m-</button>
+        <button class="btn function" data-value="mr">mr</button>
+
+        <!-- Second row -->
+        <button class="btn function" data-value="2^">x²</button>
+        <button class="btn function" data-value="sqrt">√</button>
+        <button class="btn" data-value="7">7</button>
+        <button class="btn" data-value="8">8</button>
+        <button class="btn" data-value="9">9</button>
+        <button class="btn operator" data-value="/">÷</button>
+
+        <!-- Third row -->
+        <button class="btn function" data-value="sin">sin</button>
+        <button class="btn function" data-value="cos">cos</button>
+        <button class="btn" data-value="4">4</button>
+        <button class="btn" data-value="5">5</button>
+        <button class="btn" data-value="6">6</button>
+        <button class="btn operator" data-value="*">×</button>
+
+        <!-- Fourth row -->
+        <button class="btn function" data-value="tan">tan</button>
+        <button class="btn function" data-value="log">log</button>
+        <button class="btn" data-value="1">1</button>
+        <button class="btn" data-value="2">2</button>
+        <button class="btn" data-value="3">3</button>
+        <button class="btn operator" data-value="-">−</button>
+
+        <!-- Fifth row -->
+        <button class="btn function" data-value="pi">π</button>
+        <button class="btn function" data-value="e">e</button>
+        <button class="btn" data-value="0">0</button>
+        <button class="btn" data-value=".">.</button>
+        <button class="btn clear" data-value="C">C</button>
+        <button class="btn operator" data-value="+">+</button>
+
+        <!-- Last row -->
+        <button class="btn equals" data-value="=">=</button>
+      </div>
     </div>
   </div>
   <script src="script.js"></script>
