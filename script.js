@@ -1,14 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const display = document.getElementById('display');
-  const buttons = document.querySelectorAll('.btn');
-  let current = '';
-  let operator = '';
-  let operand = '';
-
-  // Define some accent colors to choose from
   const colors = ['#6200ee', '#1e88e5', '#e53935', '#43a047', '#ff9800', '#8e24aa', '#00bcd4'];
 
-  // Convert hex color to rgba with given alpha
   function hexToRGBA(hex, alpha) {
     hex = hex.replace('#', '');
     const bigint = parseInt(hex, 16);
@@ -18,7 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
-  // Randomly set accent color and update button styles and display background
   function setRandomAccentColor() {
     const randomColor = colors[Math.floor(Math.random() * colors.length)];
     document.documentElement.style.setProperty('--accent-color', randomColor);
@@ -29,58 +20,64 @@ document.addEventListener('DOMContentLoaded', () => {
     if (equalsBtn) {
       equalsBtn.style.background = randomColor;
     }
+    const display = document.querySelector('.display');
     if (display) {
       display.style.background = hexToRGBA(randomColor, 0.3);
     }
   }
 
+  let expression = '';
+  let currentNumber = '';
+
+  const formulaEl = document.getElementById('formula');
+  const resultEl = document.getElementById('result');
+  const buttons = document.querySelectorAll('.btn');
+
   buttons.forEach(btn => {
     btn.addEventListener('click', () => {
-      const val = btn.getAttribute('data-value');
-      if (val === 'C') {
-        current = '';
-        operator = '';
-        operand = '';
-        display.textContent = '0';
+      const value = btn.getAttribute('data-value');
+      if (value === 'C') {
+        expression = '';
+        currentNumber = '';
+        formulaEl.textContent = '';
+        resultEl.textContent = '0';
         return;
       }
-      if (val === '=') {
-        if (operator && operand !== '') {
-          const expression = operand + operator + current;
-          let result;
-          try {
-            result = eval(expression);
-          } catch (e) {
-            result = 'Error';
-          }
-          display.textContent = result;
-          current = result.toString();
-          operator = '';
-          operand = '';
+      if (value === '=') {
+        if (!currentNumber) return;
+        expression += currentNumber;
+        try {
+          const result = eval(expression);
+          resultEl.textContent = result;
+          formulaEl.textContent = expression;
+          // prepare for next calculation
+          expression = '';
+          currentNumber = String(result);
+          setRandomAccentColor();
+        } catch (e) {
+          resultEl.textContent = 'Error';
         }
-        setRandomAccentColor();
         return;
       }
-      if (['+', '-', '*', '/'].includes(val)) {
-        if (current === '') {
-          operand = display.textContent;
-        } else {
-          operand = current;
+      if (['+', '-', '*', '/'].includes(value)) {
+        if (currentNumber === '' && expression === '') {
+          return;
         }
-        operator = val;
-        current = '';
+        expression += currentNumber + value;
+        currentNumber = '';
+        formulaEl.textContent = expression;
+        resultEl.textContent = '0';
         return;
       }
-      if (val === '.' && current.includes('.')) {
-        return;
-      }
-      current += val;
-      display.textContent = current;
+      // number or decimal
+      currentNumber += value;
+      resultEl.textContent = currentNumber;
+      formulaEl.textContent = expression + currentNumber;
     });
   });
 
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
       const equalsBtn = document.querySelector('.btn.equals');
       if (equalsBtn) {
         equalsBtn.click();
