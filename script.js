@@ -4,6 +4,15 @@ document.addEventListener('DOMContentLoaded', function () {
   let current = '';
   let operator = '';
   let operand = '';
+
+  // Define a list of accent colors to cycle through
+  const colors = ['#6200ee', '#1e88e5', '#e53935', '#43a047', '#ff9800', '#8e24aa', '#00bcd4'];
+
+  function setRandomAccentColor() {
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    document.documentElement.style.setProperty('--accent-color', randomColor);
+  }
+
   buttons.forEach(btn => {
     btn.addEventListener('click', () => {
       const val = btn.getAttribute('data-value');
@@ -21,6 +30,8 @@ document.addEventListener('DOMContentLoaded', function () {
           operator = '';
           operand = '';
         }
+        // Change accent color when equals is pressed
+        setRandomAccentColor();
       } else if (['+', '-', '*', '/'].includes(val)) {
         if (current === '') {
           operand = display.textContent;
@@ -34,5 +45,13 @@ document.addEventListener('DOMContentLoaded', function () {
         display.textContent = current;
       }
     });
+  });
+
+  // Handle Enter key on keyboard to trigger equals and color change
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const equalsBtn = document.querySelector('[data-value="="]');
+      if (equalsBtn) equalsBtn.click();
+    }
   });
 });
