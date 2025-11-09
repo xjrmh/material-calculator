@@ -1,9 +1,220 @@
 document.addEventListener('DOMContentLoaded', () => {
+	// Check if speech synthesis is supported
+	if (!window.speechSynthesis) {
+		console.error('Speech synthesis is not supported in this browser');
+		return;
+	}
+	console.log('Speech synthesis is supported');
+	
+	// Tab switching functionality
+	const tabs = document.querySelectorAll('.tab-btn');
+	const calculators = document.querySelectorAll('.calculator');
+	
+	tabs.forEach(tab => {
+		tab.addEventListener('click', () => {
+			const targetId = tab.getAttribute('data-tab') + '-calc';
+			
+			// Update tab buttons
+			tabs.forEach(t => t.classList.remove('active'));
+			tab.classList.add('active');
+			
+			// Update calculator displays
+			calculators.forEach(calc => {
+				calc.classList.remove('active');
+				if (calc.id === targetId) {
+					calc.classList.add('active');
+				}
+			});
+		});
+	});
+	
+	// Calculator state and memory
+	let memory = 0;
+	let isRadians = true;
+	
+	// Initialize displays and state for both calculators
 	const display = document.getElementById('display');
+	const formula = document.getElementById('formula');
+	const sciDisplay = document.getElementById('sci-display');
+	const sciFormula = document.getElementById('sci-formula');
 	const buttons = document.querySelectorAll('.btn');
+	
 	let current = '';
 	let operator = '';
 	let operand = '';
+	
+	// Function to update the formula display
+	function updateFormula(formulaElement, op1, oper, op2) {
+		let formulaText = '';
+		if (op1 !== '') {
+			formulaText += op1;
+		}
+		if (oper !== '') {
+			formulaText += ' ' + (
+				oper === '*' ? '×' :
+				oper === '/' ? '÷' :
+				oper === '-' ? '−' :
+				oper === '+' ? '+' :
+				oper === '2^' ? '²' : oper
+			);
+		}
+		if (op2 !== '') {
+			formulaText += ' ' + op2;
+		}
+		formulaElement.textContent = formulaText || '0';
+	}
+	
+	// Initialize speech synthesis
+	const synth = window.speechSynthesis;
+	let preferredVoice = null;
+	
+	// Set up preferred voice when voices are loaded
+	function initVoice() {
+		const voices = synth.getVoices();
+		console.log('Available voices:', voices.map(v => `${v.name} (${v.lang})`));
+		
+		// Try to find a natural sounding English voice
+		preferredVoice = voices.find(voice => 
+			(voice.name.includes('Samantha') || // macOS
+			 voice.name.includes('Microsoft David') || // Windows
+			 voice.name.includes('Google UK English Male')) && // Chrome
+			voice.lang.startsWith('en')
+		) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
+		
+		if (preferredVoice) {
+			console.log('Selected voice:', preferredVoice.name);
+			// Test the voice immediately
+			const test = new SpeechSynthesisUtterance('Calculator ready');
+			test.voice = preferredVoice;
+			synth.speak(test);
+		} else {
+			console.warn('No suitable voice found');
+		}
+	}
+	
+	// Handle voices loading
+	if (synth.onvoiceschanged !== undefined) {
+		console.log('Setting up onvoiceschanged handler');
+		synth.onvoiceschanged = initVoice;
+	} else {
+		console.log('onvoiceschanged not supported, trying immediate initialization');
+		initVoice();
+	}
+	
+	// Convert button value to speakable text
+	function getButtonText(val) {
+		const valueMap = {
+			'0': 'zero',
+			'1': 'one',
+			'2': 'two',
+			'3': 'three',
+			'4': 'four',
+			'5': 'five',
+			'6': 'six',
+			'7': 'seven',
+			'8': 'eight',
+			'9': 'nine',
+			'.': 'point',
+			'+': 'plus',
+			'-': 'minus',
+			'*': 'times',
+			'/': 'divided by',
+			'=': 'equals',
+			'C': 'clear',
+			'sin': 'sine',
+			'cos': 'cosine',
+			'tan': 'tangent',
+			'log': 'logarithm',
+			'sqrt': 'square root',
+			'pi': 'pi',
+			'e': 'e',
+			'(': 'open parenthesis',
+			')': 'close parenthesis',
+			'2^': 'squared',
+			'mc': 'memory clear',
+			'm+': 'memory plus',
+			'm-': 'memory minus',
+			'mr': 'memory recall'
+		};
+		return valueMap[val] || val;
+	}
+	
+	// Scientific calculator functions
+	function evaluateScientific(expression) {
+		try {
+			// Replace scientific functions and constants
+			expression = expression
+				.replace(/π/g, 'Math.PI')
+				.replace(/e/g, 'Math.E')
+				.replace(/sin\(/g, `Math.${isRadians ? 'sin' : 'sin'}(`)
+				.replace(/cos\(/g, `Math.${isRadians ? 'cos' : 'cos'}(`)
+				.replace(/tan\(/g, `Math.${isRadians ? 'tan' : 'tan'}(`)
+				.replace(/log\(/g, 'Math.log10(')
+				.replace(/sqrt\(/g, 'Math.sqrt(')
+				.replace(/2\^/g, 'Math.pow(2,');
+			
+			return eval(expression);
+		} catch (e) {
+			console.error('Scientific evaluation error:', e);
+			return 'Error';
+		}
+	}
+	
+	// Memory functions
+	function handleMemory(action, value = 0) {
+		switch (action) {
+			case 'mc':
+				memory = 0;
+				speak('Memory cleared');
+				break;
+			case 'm+':
+				memory += parseFloat(value) || 0;
+				speak('Memory plus');
+				break;
+			case 'm-':
+				memory -= parseFloat(value) || 0;
+				speak('Memory minus');
+				break;
+			case 'mr':
+				speak('Memory recall');
+				return memory.toString();
+		}
+		return value.toString();
+	}
+	
+	// Speak the given text with natural-sounding settings
+	function speak(text) {
+		console.log('Speaking:', text);
+		
+		// Some browsers require user interaction before allowing speech
+		if (synth.speaking) {
+			console.log('Cancelling previous speech');
+			synth.cancel();
+		}
+		
+		const utterance = new SpeechSynthesisUtterance(text);
+		
+		// Use our preferred voice if we found one
+		if (preferredVoice) {
+			utterance.voice = preferredVoice;
+		}
+		
+		// Adjust for more natural sound
+		utterance.rate = 1.1;      // Slightly faster than default
+		utterance.pitch = 1.0;     // Natural pitch
+		utterance.volume = 1.0;    // Full volume
+		
+		// Add event handlers to track speech status
+		utterance.onstart = () => console.log('Speech started');
+		utterance.onend = () => console.log('Speech ended');
+		utterance.onerror = (e) => console.error('Speech error:', e);
+		
+		try {
+			synth.speak(utterance);
+		} catch (e) {
+			console.error('Error speaking:', e);
+		}
+	}
 
 	// Define some accent colors to choose from
 	const colors = ['#6200ee', '#1e88e5', '#e53935', '#43a047', '#ff9800', '#8e24aa', '#00bcd4'];
@@ -18,30 +229,44 @@ document.addEventListener('DOMContentLoaded', () => {
 		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
-	// Randomly set accent color and update button styles and display background
+	// Randomly set accent color and update button styles
 	function setRandomAccentColor() {
 		const randomColor = colors[Math.floor(Math.random() * colors.length)];
 		document.documentElement.style.setProperty('--accent-color', randomColor);
 		document.querySelectorAll('.btn.operator').forEach(btn => {
 			btn.style.color = randomColor;
 		});
-		const equalsBtn = document.querySelector('.btn.equals');
-		if (equalsBtn) {
-			equalsBtn.style.background = randomColor;
-		}
-		if (display) {
-			display.style.background = hexToRGBA(randomColor, 0.3);
-		}
+		document.querySelectorAll('.btn.equals').forEach(btn => {
+			btn.style.background = randomColor;
+		});
 	}
 
+	// Add a test button for speech
+	const testButton = document.createElement('button');
+	testButton.textContent = 'Test Speech';
+	testButton.style.position = 'fixed';
+	testButton.style.bottom = '10px';
+	testButton.style.right = '10px';
+	testButton.onclick = () => speak('Testing calculator voice');
+	document.body.appendChild(testButton);
+	
 	buttons.forEach(btn => {
 		btn.addEventListener('click', () => {
 			const val = btn.getAttribute('data-value');
+			const textToSpeak = getButtonText(val);
+			console.log('Button clicked:', val, '-> Speaking:', textToSpeak);
+			speak(textToSpeak);
+			
+			// Get the active calculator
+			const isScientific = btn.closest('#scientific-calc') !== null;
+			const activeDisplay = isScientific ? sciDisplay : display;
+			const activeFormula = isScientific ? sciFormula : formula;
 			if (val === 'C') {
 				current = '';
 				operator = '';
 				operand = '';
 				display.textContent = '0';
+				formula.textContent = '0';
 				return;
 			}
 			if (val === '=') {
@@ -49,33 +274,67 @@ document.addEventListener('DOMContentLoaded', () => {
 					const expression = operand + operator + current;
 					let result;
 					try {
-						result = eval(expression);
+						result = isScientific ? 
+							evaluateScientific(expression) : 
+							eval(expression);
+						speak(result.toString());
 					} catch (e) {
 						result = 'Error';
+						speak('Error');
 					}
-					display.textContent = result;
+					activeDisplay.textContent = result;
 					current = result.toString();
 					operator = '';
 					operand = '';
+					activeFormula.textContent = result.toString();
 				}
 				setRandomAccentColor();
 				return;
 			}
-			if (['+', '-', '*', '/'].includes(val)) {
+			// Handle scientific functions
+			if (['sin', 'cos', 'tan', 'log', 'sqrt'].includes(val)) {
 				if (current === '') {
-					operand = display.textContent;
+					current = activeDisplay.textContent;
+				}
+				operand = val + '(' + current + ')';
+				current = '';
+				updateFormula(activeFormula, operand, operator, current);
+				return;
+			}
+			
+			// Handle constants
+			if (['pi', 'e'].includes(val)) {
+				current += val === 'pi' ? 'π' : 'e';
+				activeDisplay.textContent = current;
+				updateFormula(activeFormula, operand, operator, current);
+				return;
+			}
+			
+			// Handle memory operations
+			if (['mc', 'm+', 'm-', 'mr'].includes(val)) {
+				current = handleMemory(val, current || activeDisplay.textContent);
+				activeDisplay.textContent = current;
+				updateFormula(activeFormula, operand, operator, current);
+				return;
+			}
+			
+			if (['+', '-', '*', '/', '2^'].includes(val)) {
+				if (current === '') {
+					operand = activeDisplay.textContent;
 				} else {
 					operand = current;
 				}
 				operator = val;
 				current = '';
+				updateFormula(activeFormula, operand, operator, current);
 				return;
 			}
 			if (val === '.' && current.includes('.')) {
 				return;
 			}
 			current += val;
-			display.textContent = current;
+			activeDisplay.textContent = current;
+			updateFormula(activeFormula, operand, operator, current);
 		});
 	});
 
