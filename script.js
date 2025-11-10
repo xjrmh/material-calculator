@@ -6,6 +6,61 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 	console.log('Speech synthesis is supported');
 	
+	// Shared calculator state
+	const calculatorState = {
+		current: '',
+		operator: '',
+		operand: '',
+		memory: 0,
+		isRadians: true
+	};
+	
+	// Initialize displays for both calculators
+	const displays = {
+		simple: {
+			result: document.getElementById('display'),
+			formula: document.getElementById('formula')
+		},
+		scientific: {
+			result: document.getElementById('sci-display'),
+			formula: document.getElementById('sci-formula')
+		}
+	};
+	
+	// Function to sync displays across calculators
+	function updateDisplays() {
+		// Update result displays
+		displays.simple.result.textContent = calculatorState.current || '0';
+		displays.scientific.result.textContent = calculatorState.current || '0';
+		
+		// Update formula displays
+		const formulaText = getFormulaText();
+		displays.simple.formula.textContent = formulaText;
+		displays.scientific.formula.textContent = formulaText;
+	}
+	
+	// Function to get formatted formula text
+	function getFormulaText() {
+		let text = '';
+		if (calculatorState.operand !== '') {
+			text += calculatorState.operand;
+		}
+		if (calculatorState.operator !== '') {
+			text += ' ' + (
+				calculatorState.operator === '*' ? '×' :
+				calculatorState.operator === '/' ? '÷' :
+				calculatorState.operator === '-' ? '−' :
+				calculatorState.operator === '+' ? '+' :
+				calculatorState.operator === '2^' ? '²' :
+				calculatorState.operator
+			);
+		}
+		if (calculatorState.current !== '') {
+			text += ' ' + calculatorState.current;
+		}
+		return text || '0';
+	}
+	
 	// Tab switching functionality
 	const tabs = document.querySelectorAll('.tab-btn');
 	const calculators = document.querySelectorAll('.calculator');
@@ -25,23 +80,13 @@ document.addEventListener('DOMContentLoaded', () => {
 					calc.classList.add('active');
 				}
 			});
+			
+			// Ensure displays are synced when switching tabs
+			updateDisplays();
 		});
 	});
 	
-	// Calculator state and memory
-	let memory = 0;
-	let isRadians = true;
-	
-	// Initialize displays and state for both calculators
-	const display = document.getElementById('display');
-	const formula = document.getElementById('formula');
-	const sciDisplay = document.getElementById('sci-display');
-	const sciFormula = document.getElementById('sci-formula');
 	const buttons = document.querySelectorAll('.btn');
-	
-	let current = '';
-	let operator = '';
-	let operand = '';
 	
 	// Function to update the formula display
 	function updateFormula(formulaElement, op1, oper, op2) {
@@ -270,11 +315,11 @@ document.addEventListener('DOMContentLoaded', () => {
 				return;
 			}
 			if (val === '=') {
-				if (operator && operand !== '') {
-					const expression = operand + operator + current;
+				if (calculatorState.operator && calculatorState.operand !== '') {
+					const expression = calculatorState.operand + calculatorState.operator + calculatorState.current;
 					let result;
 					try {
-						result = isScientific ? 
+						result = btn.closest('#scientific-calc') !== null ? 
 							evaluateScientific(expression) : 
 							eval(expression);
 						speak(result.toString());
@@ -282,11 +327,10 @@ document.addEventListener('DOMContentLoaded', () => {
 						result = 'Error';
 						speak('Error');
 					}
-					activeDisplay.textContent = result;
-					current = result.toString();
-					operator = '';
-					operand = '';
-					activeFormula.textContent = result.toString();
+					calculatorState.current = result.toString();
+					calculatorState.operator = '';
+					calculatorState.operand = '';
+					updateDisplays();
 				}
 				setRandomAccentColor();
 				return;
@@ -304,37 +348,34 @@ document.addEventListener('DOMContentLoaded', () => {
 			
 			// Handle constants
 			if (['pi', 'e'].includes(val)) {
-				current += val === 'pi' ? 'π' : 'e';
-				activeDisplay.textContent = current;
-				updateFormula(activeFormula, operand, operator, current);
+				calculatorState.current += val === 'pi' ? 'π' : 'e';
+				updateDisplays();
 				return;
 			}
 			
 			// Handle memory operations
 			if (['mc', 'm+', 'm-', 'mr'].includes(val)) {
-				current = handleMemory(val, current || activeDisplay.textContent);
-				activeDisplay.textContent = current;
-				updateFormula(activeFormula, operand, operator, current);
+				calculatorState.current = handleMemory(val, calculatorState.current || displays.simple.result.textContent);
+				updateDisplays();
 				return;
 			}
 			
 			if (['+', '-', '*', '/', '2^'].includes(val)) {
-				if (current === '') {
-					operand = activeDisplay.textContent;
+				if (calculatorState.current === '') {
+					calculatorState.operand = displays.simple.result.textContent;
 				} else {
-					operand = current;
+					calculatorState.operand = calculatorState.current;
 				}
-				operator = val;
-				current = '';
-				updateFormula(activeFormula, operand, operator, current);
+				calculatorState.operator = val;
+				calculatorState.current = '';
+				updateDisplays();
 				return;
 			}
 			if (val === '.' && current.includes('.')) {
 				return;
 			}
-			current += val;
-			activeDisplay.textContent = current;
-			updateFormula(activeFormula, operand, operator, current);
+			calculatorState.current += val;
+			updateDisplays();
 		});
 	});
 
