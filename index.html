@@ -11,6 +11,7 @@
     <div class="tabs">
       <button class="tab-btn active" data-tab="simple">Simple</button>
       <button class="tab-btn" data-tab="scientific">Scientific</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
     </div>
     
     <div class="calculator active" id="simple-calc">
@@ -89,6 +90,44 @@
         <!-- Last row -->
         <button class="btn random" data-value="random">🎲</button>
         <button class="btn equals" data-value="=">=</button>
+      </div>
+    </div>
+
+    <div class="calculator" id="settings-calc">
+      <div class="settings-panel">
+        <h2>Settings</h2>
+        
+        <div class="setting-group">
+          <label for="rounding-digits">Rounding Digits</label>
+          <input type="number" id="rounding-digits" min="0" max="10" value="4">
+          <p class="setting-description">Number of decimal places to display (0-10)</p>
+        </div>
+
+        <div class="setting-group">
+          <label for="random-min">Random Range Min</label>
+          <input type="number" id="random-min" value="0">
+        </div>
+
+        <div class="setting-group">
+          <label for="random-max">Random Range Max</label>
+          <input type="number" id="random-max" value="1000">
+          <p class="setting-description">Range for random number generation</p>
+        </div>
+
+        <div class="setting-group">
+          <label class="switch-label">
+            <span>Voice Feedback</span>
+            <label class="switch">
+              <input type="checkbox" id="voice-enabled" checked>
+              <span class="slider"></span>
+            </label>
+          </label>
+          <p class="setting-description">Enable or disable voice feedback for operations</p>
+        </div>
+
+        <div class="setting-group">
+          <button class="btn-reset" id="reset-settings">Reset to Defaults</button>
+        </div>
       </div>
     </div>
   </div>

@@ -15,6 +15,36 @@ document.addEventListener('DOMContentLoaded', () => {
 		isRadians: true
 	};
 	
+	// Settings state
+	const settings = {
+		roundingDigits: 4,
+		randomMin: 0,
+		randomMax: 1000,
+		voiceEnabled: true
+	};
+	
+	// Load settings from localStorage
+	function loadSettings() {
+		const saved = localStorage.getItem('calculatorSettings');
+		if (saved) {
+			Object.assign(settings, JSON.parse(saved));
+		}
+		updateSettingsUI();
+	}
+	
+	// Save settings to localStorage
+	function saveSettings() {
+		localStorage.setItem('calculatorSettings', JSON.stringify(settings));
+	}
+	
+	// Update settings UI elements
+	function updateSettingsUI() {
+		document.getElementById('rounding-digits').value = settings.roundingDigits;
+		document.getElementById('random-min').value = settings.randomMin;
+		document.getElementById('random-max').value = settings.randomMax;
+		document.getElementById('voice-enabled').checked = settings.voiceEnabled;
+	}
+	
 	// Initialize displays for both calculators
 	const displays = {
 		simple: {
@@ -27,41 +57,65 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	};
 	
+	// Operator display mapping
+	const operatorSymbols = {
+		'*': '×',
+		'/': '÷',
+		'-': '−',
+		'+': '+',
+		'2^': '²'
+	};
+	
+	// Button text mapping for speech
+	const buttonTextMap = {
+		'0': 'zero', '1': 'one', '2': 'two', '3': 'three', '4': 'four',
+		'5': 'five', '6': 'six', '7': 'seven', '8': 'eight', '9': 'nine',
+		'.': 'point', '+': 'plus', '-': 'minus', '*': 'times', '/': 'divided by',
+		'=': 'equals', 'C': 'clear', 'sin': 'sine', 'cos': 'cosine',
+		'tan': 'tangent', 'log': 'logarithm', 'sqrt': 'square root',
+		'pi': 'pi', 'e': 'e', '(': 'open parenthesis', ')': 'close parenthesis',
+		'2^': 'squared', 'mc': 'memory clear', 'm+': 'memory plus',
+		'm-': 'memory minus', 'mr': 'memory recall', 'random': 'random calculation'
+	};
+	
+	// Accent colors for random selection
+	const accentColors = ['#6200ee', '#1e88e5', '#e53935', '#43a047', '#ff9800', '#8e24aa', '#00bcd4'];
+	
+	// Speech synthesis variables
+	const synth = window.speechSynthesis;
+	let preferredVoice = null;
+	
+	// ==================== UTILITY FUNCTIONS ====================
+	
 	// Function to format numbers with thousand delimiters
 	function formatNumber(value) {
 		if (!value || value === '0') return '0';
-		
-		// Handle error messages
 		if (value === 'Error' || isNaN(value)) return value;
 		
-		const num = parseFloat(value);
+		let num = parseFloat(value);
 		if (isNaN(num)) return value;
 		
-		// Format with thousand separators
-		// Use toLocaleString for proper formatting
-		// Preserve precision for scientific calculations
-		const parts = value.toString().split('.');
-		const integerPart = parts[0];
-		const decimalPart = parts[1] || '';
+		// Apply rounding based on settings
+		if (settings.roundingDigits >= 0) {
+			const factor = Math.pow(10, settings.roundingDigits);
+			num = Math.round(num * factor) / factor;
+		}
 		
-		// Add commas to integer part
-		const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+		const parts = num.toString().split('.');
+		const integerPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+		let decimalPart = parts[1] || '';
 		
-		// Combine with decimal part if exists
-		return decimalPart ? formattedInteger + '.' + decimalPart : formattedInteger;
+		// Limit decimal places
+		if (decimalPart && settings.roundingDigits >= 0) {
+			decimalPart = decimalPart.substring(0, settings.roundingDigits);
+		}
+		
+		return decimalPart ? `${integerPart}.${decimalPart}` : integerPart;
 	}
 	
-	// Function to sync displays across calculators
-	function updateDisplays() {
-		// Update result displays with formatted numbers
-		const formattedValue = formatNumber(calculatorState.current) || '0';
-		displays.simple.result.textContent = formattedValue;
-		displays.scientific.result.textContent = formattedValue;
-		
-		// Update formula displays
-		const formulaText = getFormulaText();
-		displays.simple.formula.textContent = formulaText;
-		displays.scientific.formula.textContent = formulaText;
+	// Function to get formatted operator symbol
+	function getOperatorSymbol(operator) {
+		return operatorSymbols[operator] || operator;
 	}
 	
 	// Function to get formatted formula text
@@ -71,14 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			text += formatNumber(calculatorState.operand);
 		}
 		if (calculatorState.operator !== '') {
-			text += ' ' + (
-				calculatorState.operator === '*' ? '×' :
-				calculatorState.operator === '/' ? '÷' :
-				calculatorState.operator === '-' ? '−' :
-				calculatorState.operator === '+' ? '+' :
-				calculatorState.operator === '2^' ? '²' :
-				calculatorState.operator
-			);
+			text += ' ' + getOperatorSymbol(calculatorState.operator);
 		}
 		if (calculatorState.current !== '') {
 			text += ' ' + formatNumber(calculatorState.current);
@@ -86,68 +133,36 @@ document.addEventListener('DOMContentLoaded', () => {
 		return text || '0';
 	}
 	
-	// Tab switching functionality
-	const tabs = document.querySelectorAll('.tab-btn');
-	const calculators = document.querySelectorAll('.calculator');
-	
-	tabs.forEach(tab => {
-		tab.addEventListener('click', () => {
-			const targetId = tab.getAttribute('data-tab') + '-calc';
-			
-			// Update tab buttons
-			tabs.forEach(t => t.classList.remove('active'));
-			tab.classList.add('active');
-			
-			// Update calculator displays
-			calculators.forEach(calc => {
-				calc.classList.remove('active');
-				if (calc.id === targetId) {
-					calc.classList.add('active');
-				}
-			});
-			
-			// Ensure displays are synced when switching tabs
-			updateDisplays();
-		});
-	});
-	
-	const buttons = document.querySelectorAll('.btn');
-	
-	// Function to update the formula display
-	function updateFormula(formulaElement, op1, oper, op2) {
-		let formulaText = '';
-		if (op1 !== '') {
-			formulaText += op1;
-		}
-		if (oper !== '') {
-			formulaText += ' ' + (
-				oper === '*' ? '×' :
-				oper === '/' ? '÷' :
-				oper === '-' ? '−' :
-				oper === '+' ? '+' :
-				oper === '2^' ? '²' : oper
-			);
-		}
-		if (op2 !== '') {
-			formulaText += ' ' + op2;
-		}
-		formulaElement.textContent = formulaText || '0';
+	// Function to sync displays across calculators
+	function updateDisplays() {
+		const formattedValue = formatNumber(calculatorState.current) || '0';
+		const formulaText = getFormulaText();
+		
+		displays.simple.result.textContent = formattedValue;
+		displays.scientific.result.textContent = formattedValue;
+		displays.simple.formula.textContent = formulaText;
+		displays.scientific.formula.textContent = formulaText;
 	}
 	
-	// Initialize speech synthesis
-	const synth = window.speechSynthesis;
-	let preferredVoice = null;
+	// Reset calculator state
+	function resetState() {
+		calculatorState.current = '';
+		calculatorState.operator = '';
+		calculatorState.operand = '';
+		updateDisplays();
+	}
+	
+	// ==================== SPEECH FUNCTIONS ====================
 	
 	// Set up preferred voice when voices are loaded
 	function initVoice() {
 		const voices = synth.getVoices();
 		console.log('Available voices:', voices.map(v => `${v.name} (${v.lang})`));
 		
-		// Try to find a natural sounding English voice
 		preferredVoice = voices.find(voice => 
-			(voice.name.includes('Samantha') || // macOS
-			 voice.name.includes('Microsoft David') || // Windows
-			 voice.name.includes('Google UK English Male')) && // Chrome
+			(voice.name.includes('Samantha') || 
+			 voice.name.includes('Microsoft David') || 
+			 voice.name.includes('Google UK English Male')) && 
 			voice.lang.startsWith('en')
 		) || voices.find(voice => voice.lang.startsWith('en')) || voices[0];
 		
@@ -158,62 +173,49 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	}
 	
-	// Handle voices loading
+	// Initialize voice handlers
 	if (synth.onvoiceschanged !== undefined) {
-		console.log('Setting up onvoiceschanged handler');
 		synth.onvoiceschanged = initVoice;
-	} else {
-		console.log('onvoiceschanged not supported, trying immediate initialization');
-		initVoice();
+	}
+	initVoice();
+	
+	// Speak the given text
+	function speak(text) {
+		if (!settings.voiceEnabled) return;
+		
+		text = text.toString().replace(/,/g, '');
+		console.log('Speaking:', text);
+		
+		if (synth.speaking) {
+			synth.cancel();
+		}
+		
+		const utterance = new SpeechSynthesisUtterance(text);
+		if (preferredVoice) utterance.voice = preferredVoice;
+		utterance.rate = 1.1;
+		utterance.pitch = 1.0;
+		utterance.volume = 1.0;
+		
+		try {
+			synth.speak(utterance);
+		} catch (e) {
+			console.error('Error speaking:', e);
+		}
 	}
 	
 	// Convert button value to speakable text
 	function getButtonText(val) {
-		const valueMap = {
-			'0': 'zero',
-			'1': 'one',
-			'2': 'two',
-			'3': 'three',
-			'4': 'four',
-			'5': 'five',
-			'6': 'six',
-			'7': 'seven',
-			'8': 'eight',
-			'9': 'nine',
-			'.': 'point',
-			'+': 'plus',
-			'-': 'minus',
-			'*': 'times',
-			'/': 'divided by',
-			'=': 'equals',
-			'C': 'clear',
-			'sin': 'sine',
-			'cos': 'cosine',
-			'tan': 'tangent',
-			'log': 'logarithm',
-			'sqrt': 'square root',
-			'pi': 'pi',
-			'e': 'e',
-			'(': 'open parenthesis',
-			')': 'close parenthesis',
-			'2^': 'squared',
-			'mc': 'memory clear',
-			'm+': 'memory plus',
-			'm-': 'memory minus',
-			'mr': 'memory recall',
-			'random': 'random calculation'
-		};
-		return valueMap[val] || val;
+		return buttonTextMap[val] || val;
 	}
 	
-	// Scientific calculator functions
+	// ==================== CALCULATION FUNCTIONS ====================
+	
+	// Scientific calculator evaluation
 	function evaluateScientific(expression) {
 		try {
-			// Replace scientific functions and constants
-			// Be careful to replace constants only when they appear as standalone values
 			expression = expression
 				.replace(/π/g, 'Math.PI')
-				.replace(/\be\b/g, 'Math.E')  // Only replace 'e' as a standalone constant
+				.replace(/\be\b/g, 'Math.E')
 				.replace(/sin\(/g, 'Math.sin(')
 				.replace(/cos\(/g, 'Math.cos(')
 				.replace(/tan\(/g, 'Math.tan(')
@@ -228,19 +230,42 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	}
 	
-	// Memory functions
+	// Perform calculation
+	function calculate(isScientific) {
+		if (!calculatorState.operator || calculatorState.operand === '') return;
+		
+		const expression = calculatorState.operand + calculatorState.operator + calculatorState.current;
+		let result;
+		
+		try {
+			result = isScientific ? evaluateScientific(expression) : eval(expression);
+			speak(result.toString());
+		} catch (e) {
+			result = 'Error';
+			speak('Error');
+		}
+		
+		calculatorState.current = result.toString();
+		calculatorState.operator = '';
+		calculatorState.operand = '';
+		updateDisplays();
+	}
+	
+	// Memory operations
 	function handleMemory(action, value = 0) {
+		const numValue = parseFloat(value) || 0;
+		
 		switch (action) {
 			case 'mc':
 				calculatorState.memory = 0;
 				speak('Memory cleared');
 				break;
 			case 'm+':
-				calculatorState.memory += parseFloat(value) || 0;
+				calculatorState.memory += numValue;
 				speak('Memory plus');
 				break;
 			case 'm-':
-				calculatorState.memory -= parseFloat(value) || 0;
+				calculatorState.memory -= numValue;
 				speak('Memory minus');
 				break;
 			case 'mr':
@@ -250,203 +275,245 @@ document.addEventListener('DOMContentLoaded', () => {
 		return value.toString();
 	}
 	
-	// Speak the given text with natural-sounding settings
-	function speak(text) {
-		// Remove commas from numbers for better speech
-		text = text.toString().replace(/,/g, '');
+	// Handle scientific function
+	function handleScientificFunction(func, currentValue) {
+		const expression = `${func}(${currentValue})`;
+		const result = evaluateScientific(expression);
 		
-		console.log('Speaking:', text);
-		
-		// Some browsers require user interaction before allowing speech
-		if (synth.speaking) {
-			console.log('Cancelling previous speech');
-			synth.cancel();
+		if (result !== 'Error') {
+			speak(result.toString());
+			calculatorState.current = result.toString();
+			calculatorState.operator = '';
+			calculatorState.operand = '';
+		} else {
+			speak('Error');
 		}
-		
-		const utterance = new SpeechSynthesisUtterance(text);
-		
-		// Use our preferred voice if we found one
-		if (preferredVoice) {
-			utterance.voice = preferredVoice;
-		}
-		
-		// Adjust for more natural sound
-		utterance.rate = 1.1;      // Slightly faster than default
-		utterance.pitch = 1.0;     // Natural pitch
-		utterance.volume = 1.0;    // Full volume
-		
-		// Add event handlers to track speech status
-		utterance.onstart = () => console.log('Speech started');
-		utterance.onend = () => console.log('Speech ended');
-		utterance.onerror = (e) => console.error('Speech error:', e);
-		
-		try {
-			synth.speak(utterance);
-		} catch (e) {
-			console.error('Error speaking:', e);
-		}
+		updateDisplays();
 	}
-
-	// Define some accent colors to choose from
-	const colors = ['#6200ee', '#1e88e5', '#e53935', '#43a047', '#ff9800', '#8e24aa', '#00bcd4'];
-
-	// Convert hex color to rgba with given alpha
-	function hexToRGBA(hex, alpha) {
-		hex = hex.replace('#', '');
-		const bigint = parseInt(hex, 16);
-		const r = (bigint >> 16) & 255;
-		const g = (bigint >> 8) & 255;
-		const b = bigint & 255;
-		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+	
+	// Generate random calculation
+	function generateRandomCalculation(isScientific) {
+		let result;
+		const min = settings.randomMin;
+		const max = settings.randomMax;
+		
+		if (isScientific) {
+			const operations = [
+				() => {
+					const num = Math.floor(Math.random() * (max - min + 1)) + min;
+					return { expr: `sqrt(${num})`, result: Math.sqrt(num) };
+				},
+				() => {
+					const num = Math.random() * Math.PI;
+					return { expr: `sin(${num.toFixed(4)})`, result: Math.sin(num) };
+				},
+				() => {
+					const num = Math.random() * Math.PI;
+					return { expr: `cos(${num.toFixed(4)})`, result: Math.cos(num) };
+				},
+				() => {
+					const num = Math.floor(Math.random() * (max - min + 1)) + min;
+					if (num <= 0) num = 1; // Ensure log is valid
+					return { expr: `log(${num})`, result: Math.log10(num) };
+				},
+				() => {
+					const num = Math.floor(Math.random() * 20) + 1;
+					return { expr: `${num}²`, result: num * num };
+				},
+				() => {
+					const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+					const num2 = Math.floor(Math.random() * (max - min + 1)) + min;
+					const ops = ['+', '-', '*', '/'];
+					const op = ops[Math.floor(Math.random() * ops.length)];
+					return { expr: `${num1} ${op} ${num2}`, result: eval(`${num1}${op}${num2}`) };
+				}
+			];
+			const operation = operations[Math.floor(Math.random() * operations.length)]();
+			result = operation.result;
+			speak(`Random calculation: ${operation.expr} equals ${result.toFixed(settings.roundingDigits)}`);
+		} else {
+			const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+			const num2 = Math.floor(Math.random() * (max - min + 1)) + min;
+			const operations = [
+				{ op: '+', calc: num1 + num2, symbol: 'plus' },
+				{ op: '-', calc: num1 - num2, symbol: 'minus' },
+				{ op: '*', calc: num1 * num2, symbol: 'times' },
+				{ op: '/', calc: num1 / num2, symbol: 'divided by' }
+			];
+			const selected = operations[Math.floor(Math.random() * operations.length)];
+			result = selected.calc;
+			speak(`Random calculation: ${num1} ${selected.symbol} ${num2} equals ${result.toFixed(settings.roundingDigits)}`);
+		}
+		
+		calculatorState.current = result.toString();
+		calculatorState.operator = '';
+		calculatorState.operand = '';
+		updateDisplays();
 	}
-
-	// Randomly set accent color and update button styles
+	
+	// Randomly set accent color
 	function setRandomAccentColor() {
-		const randomColor = colors[Math.floor(Math.random() * colors.length)];
+		const randomColor = accentColors[Math.floor(Math.random() * accentColors.length)];
 		document.documentElement.style.setProperty('--accent-color', randomColor);
-		document.querySelectorAll('.btn.operator').forEach(btn => {
-			btn.style.color = randomColor;
-		});
-		document.querySelectorAll('.btn.equals').forEach(btn => {
-			btn.style.background = randomColor;
-		});
+		document.querySelectorAll('.btn.operator').forEach(btn => btn.style.color = randomColor);
+		document.querySelectorAll('.btn.equals').forEach(btn => btn.style.background = randomColor);
 	}
-
-	// Add a test button for speech
-	const testButton = document.createElement('button');
-	testButton.textContent = 'Test Speech';
-	testButton.style.position = 'fixed';
-	testButton.style.bottom = '10px';
-	testButton.style.right = '10px';
-	testButton.onclick = () => speak('Testing calculator voice');
-	document.body.appendChild(testButton);
+	
+	// ==================== EVENT HANDLERS ====================
+	
+	// Tab switching
+	const tabs = document.querySelectorAll('.tab-btn');
+	const calculators = document.querySelectorAll('.calculator');
+	
+	tabs.forEach(tab => {
+		tab.addEventListener('click', () => {
+			const targetId = tab.getAttribute('data-tab') + '-calc';
+			
+			tabs.forEach(t => t.classList.remove('active'));
+			tab.classList.add('active');
+			
+			calculators.forEach(calc => {
+				calc.classList.remove('active');
+				if (calc.id === targetId) calc.classList.add('active');
+			});
+			
+			updateDisplays();
+		});
+	});
+	
+	// Button click handler
+	const buttons = document.querySelectorAll('.btn');
+	
+	// Long press support for random button
+	let longPressTimer = null;
+	let longPressInterval = null;
+	let speedUpTimer = null;
 	
 	buttons.forEach(btn => {
+		const val = btn.getAttribute('data-value');
+		
+		// Add long press handlers for random button
+		if (val === 'random') {
+			btn.addEventListener('mousedown', (e) => {
+				e.preventDefault();
+				const isScientific = btn.closest('#scientific-calc') !== null;
+				
+				// Start long press timer
+				longPressTimer = setTimeout(() => {
+					// Start repeating execution at 0.3s intervals
+					longPressInterval = setInterval(() => {
+						generateRandomCalculation(isScientific);
+						setRandomAccentColor();
+					}, 300);
+					
+					// After 3 seconds, speed up to 0.1s intervals
+					speedUpTimer = setTimeout(() => {
+						clearInterval(longPressInterval);
+						longPressInterval = setInterval(() => {
+							generateRandomCalculation(isScientific);
+							setRandomAccentColor();
+						}, 100);
+					}, 3000);
+				}, 500); // Wait 0.5 seconds before starting auto-repeat
+			});
+			
+			btn.addEventListener('mouseup', () => {
+				clearTimeout(longPressTimer);
+				clearInterval(longPressInterval);
+				clearTimeout(speedUpTimer);
+				longPressTimer = null;
+				longPressInterval = null;
+				speedUpTimer = null;
+			});
+			
+			btn.addEventListener('mouseleave', () => {
+				clearTimeout(longPressTimer);
+				clearInterval(longPressInterval);
+				clearTimeout(speedUpTimer);
+				longPressTimer = null;
+				longPressInterval = null;
+				speedUpTimer = null;
+			});
+			
+			// Touch support for mobile
+			btn.addEventListener('touchstart', (e) => {
+				e.preventDefault();
+				const isScientific = btn.closest('#scientific-calc') !== null;
+				
+				longPressTimer = setTimeout(() => {
+					longPressInterval = setInterval(() => {
+						generateRandomCalculation(isScientific);
+						setRandomAccentColor();
+					}, 300);
+					
+					// After 3 seconds, speed up to 0.1s intervals
+					speedUpTimer = setTimeout(() => {
+						clearInterval(longPressInterval);
+						longPressInterval = setInterval(() => {
+							generateRandomCalculation(isScientific);
+							setRandomAccentColor();
+						}, 100);
+					}, 3000);
+				}, 500);
+			});
+			
+			btn.addEventListener('touchend', () => {
+				clearTimeout(longPressTimer);
+				clearInterval(longPressInterval);
+				clearTimeout(speedUpTimer);
+				longPressTimer = null;
+				longPressInterval = null;
+				speedUpTimer = null;
+			});
+			
+			btn.addEventListener('touchcancel', () => {
+				clearTimeout(longPressTimer);
+				clearInterval(longPressInterval);
+				clearTimeout(speedUpTimer);
+				longPressTimer = null;
+				longPressInterval = null;
+				speedUpTimer = null;
+			});
+		}
+		
 		btn.addEventListener('click', () => {
 			const val = btn.getAttribute('data-value');
-			const textToSpeak = getButtonText(val);
-			console.log('Button clicked:', val, '-> Speaking:', textToSpeak);
-			speak(textToSpeak);
-			
-			// Get the active calculator
 			const isScientific = btn.closest('#scientific-calc') !== null;
 			const activeDisplays = isScientific ? displays.scientific : displays.simple;
+			
+			speak(getButtonText(val));
+			
+			// Clear button
 			if (val === 'C') {
-				calculatorState.current = '';
-				calculatorState.operator = '';
-				calculatorState.operand = '';
-				updateDisplays();
+				resetState();
 				return;
 			}
+			
+			// Equals button
 			if (val === '=') {
-				if (calculatorState.operator && calculatorState.operand !== '') {
-					const expression = calculatorState.operand + calculatorState.operator + calculatorState.current;
-					let result;
-					try {
-						result = btn.closest('#scientific-calc') !== null ? 
-							evaluateScientific(expression) : 
-							eval(expression);
-						speak(result.toString());
-					} catch (e) {
-						result = 'Error';
-						speak('Error');
-					}
-					calculatorState.current = result.toString();
-					calculatorState.operator = '';
-					calculatorState.operand = '';
-					updateDisplays();
-				}
+				calculate(isScientific);
 				setRandomAccentColor();
 				return;
 			}
 			
-			// Handle random calculation
+			// Random calculation button
 			if (val === 'random') {
-				const isScientific = btn.closest('#scientific-calc') !== null;
-				let result;
-				
-				if (isScientific) {
-					// Scientific random calculations
-					const operations = [
-						() => {
-							const num = Math.floor(Math.random() * 100);
-							return { expr: `sqrt(${num})`, result: Math.sqrt(num) };
-						},
-						() => {
-							const num = Math.random() * Math.PI;
-							return { expr: `sin(${num.toFixed(4)})`, result: Math.sin(num) };
-						},
-						() => {
-							const num = Math.random() * Math.PI;
-							return { expr: `cos(${num.toFixed(4)})`, result: Math.cos(num) };
-						},
-						() => {
-							const num = Math.floor(Math.random() * 100) + 1;
-							return { expr: `log(${num})`, result: Math.log10(num) };
-						},
-						() => {
-							const num = Math.floor(Math.random() * 20) + 1;
-							return { expr: `${num}²`, result: num * num };
-						},
-						() => {
-							const num1 = Math.floor(Math.random() * 100);
-							const num2 = Math.floor(Math.random() * 100);
-							const ops = ['+', '-', '*', '/'];
-							const op = ops[Math.floor(Math.random() * ops.length)];
-							return { expr: `${num1} ${op} ${num2}`, result: eval(`${num1}${op}${num2}`) };
-						}
-					];
-					const operation = operations[Math.floor(Math.random() * operations.length)]();
-					result = operation.result;
-					speak(`Random calculation: ${operation.expr} equals ${result.toFixed(4)}`);
-				} else {
-					// Simple random calculations
-					const num1 = Math.floor(Math.random() * 1000);
-					const num2 = Math.floor(Math.random() * 1000);
-					const operations = [
-						{ op: '+', calc: num1 + num2, symbol: 'plus' },
-						{ op: '-', calc: num1 - num2, symbol: 'minus' },
-						{ op: '*', calc: num1 * num2, symbol: 'times' },
-						{ op: '/', calc: num1 / num2, symbol: 'divided by' }
-					];
-					const selected = operations[Math.floor(Math.random() * operations.length)];
-					result = selected.calc;
-					speak(`Random calculation: ${num1} ${selected.symbol} ${num2} equals ${result.toFixed(2)}`);
-				}
-				
-				calculatorState.current = result.toString();
-				calculatorState.operator = '';
-				calculatorState.operand = '';
-				updateDisplays();
+				generateRandomCalculation(isScientific);
 				setRandomAccentColor();
 				return;
 			}
-			// Handle scientific functions
+			
+			// Scientific functions
 			if (['sin', 'cos', 'tan', 'log', 'sqrt'].includes(val)) {
-				if (calculatorState.current === '') {
-					calculatorState.current = activeDisplays.result.textContent;
-				}
-				// Immediately evaluate the scientific function
-				const expression = val + '(' + calculatorState.current + ')';
-				const result = evaluateScientific(expression);
-				if (result !== 'Error') {
-					speak(result.toString());
-					calculatorState.current = result.toString();
-					calculatorState.operator = '';
-					calculatorState.operand = '';
-				} else {
-					speak('Error');
-				}
-				updateDisplays();
+				const currentValue = calculatorState.current || activeDisplays.result.textContent.replace(/,/g, '');
+				handleScientificFunction(val, currentValue);
 				return;
 			}
 			
-			// Handle x² (square function)
+			// Square function
 			if (val === '2^') {
-				if (calculatorState.current === '') {
-					calculatorState.current = activeDisplays.result.textContent;
-				}
-				const num = parseFloat(calculatorState.current);
+				const currentValue = calculatorState.current || activeDisplays.result.textContent.replace(/,/g, '');
+				const num = parseFloat(currentValue);
 				const result = num * num;
 				speak(result.toString());
 				calculatorState.current = result.toString();
@@ -456,30 +523,29 @@ document.addEventListener('DOMContentLoaded', () => {
 				return;
 			}
 			
-			// Handle constants
+			// Constants
 			if (['pi', 'e'].includes(val)) {
-				// If there's already a number, treat constants as multiplication
 				if (calculatorState.current !== '' && calculatorState.current !== '0') {
 					calculatorState.operand = calculatorState.current;
 					calculatorState.operator = '*';
-					calculatorState.current = val === 'pi' ? Math.PI.toString() : Math.E.toString();
-				} else {
-					calculatorState.current = val === 'pi' ? Math.PI.toString() : Math.E.toString();
 				}
+				calculatorState.current = val === 'pi' ? Math.PI.toString() : Math.E.toString();
 				updateDisplays();
 				return;
 			}
 			
-			// Handle memory operations
+			// Memory operations
 			if (['mc', 'm+', 'm-', 'mr'].includes(val)) {
-				calculatorState.current = handleMemory(val, calculatorState.current || displays.simple.result.textContent);
+				const currentValue = calculatorState.current || activeDisplays.result.textContent.replace(/,/g, '');
+				calculatorState.current = handleMemory(val, currentValue);
 				updateDisplays();
 				return;
 			}
 			
+			// Operators
 			if (['+', '-', '*', '/'].includes(val)) {
 				if (calculatorState.current === '') {
-					calculatorState.operand = displays.simple.result.textContent;
+					calculatorState.operand = activeDisplays.result.textContent.replace(/,/g, '');
 				} else {
 					calculatorState.operand = calculatorState.current;
 				}
@@ -488,57 +554,90 @@ document.addEventListener('DOMContentLoaded', () => {
 				updateDisplays();
 				return;
 			}
+			
+			// Decimal point
 			if (val === '.' && calculatorState.current.includes('.')) {
 				return;
 			}
+			
+			// Numbers and decimal point
 			calculatorState.current += val;
 			updateDisplays();
 		});
 	});
-
+	
+	// Keyboard support
 	document.addEventListener('keydown', (event) => {
-		// Handle Enter key
+		// Enter key
 		if (event.key === 'Enter') {
-			const equalsBtn = document.querySelector('.btn.equals');
-			if (equalsBtn) {
-				equalsBtn.click();
-			}
+			document.querySelector('.btn.equals')?.click();
 			return;
 		}
 		
-		// Handle number keys
+		// Number keys
 		if (event.key >= '0' && event.key <= '9') {
-			const btn = document.querySelector(`.btn[data-value="${event.key}"]`);
-			if (btn) {
-				btn.click();
-			}
+			document.querySelector(`.btn[data-value="${event.key}"]`)?.click();
 			return;
 		}
 		
-		// Handle operators
-		const operatorMap = {
-			'+': '+',
-			'-': '-',
-			'*': '*',
-			'/': '/',
-			'.': '.'
-		};
-		
-		if (operatorMap[event.key]) {
-			const btn = document.querySelector(`.btn[data-value="${operatorMap[event.key]}"]`);
-			if (btn) {
-				btn.click();
-			}
+		// Operators
+		if (['+', '-', '*', '/', '.'].includes(event.key)) {
+			document.querySelector(`.btn[data-value="${event.key}"]`)?.click();
 			return;
 		}
 		
-		// Handle Clear (Escape or c key)
+		// Clear (Escape or c)
 		if (event.key === 'Escape' || event.key.toLowerCase() === 'c') {
-			const clearBtn = document.querySelector('.btn[data-value="C"]');
-			if (clearBtn) {
-				clearBtn.click();
-			}
+			document.querySelector('.btn[data-value="C"]')?.click();
 			return;
 		}
 	});
+	
+	// ==================== SETTINGS HANDLERS ====================
+	
+	// Load settings on startup
+	loadSettings();
+	
+	// Settings event listeners
+	document.getElementById('rounding-digits').addEventListener('change', (e) => {
+		settings.roundingDigits = parseInt(e.target.value);
+		saveSettings();
+		updateDisplays(); // Refresh display with new rounding
+	});
+	
+	document.getElementById('random-min').addEventListener('change', (e) => {
+		settings.randomMin = parseInt(e.target.value);
+		saveSettings();
+	});
+	
+	document.getElementById('random-max').addEventListener('change', (e) => {
+		settings.randomMax = parseInt(e.target.value);
+		saveSettings();
+	});
+	
+	document.getElementById('voice-enabled').addEventListener('change', (e) => {
+		settings.voiceEnabled = e.target.checked;
+		saveSettings();
+		if (settings.voiceEnabled) {
+			speak('Voice enabled');
+		}
+	});
+	
+	document.getElementById('reset-settings').addEventListener('click', () => {
+		settings.roundingDigits = 4;
+		settings.randomMin = 0;
+		settings.randomMax = 1000;
+		settings.voiceEnabled = true;
+		saveSettings();
+		updateSettingsUI();
+		updateDisplays();
+		speak('Settings reset to defaults');
+	});
+	
+	// Add test button for speech
+	const testButton = document.createElement('button');
+	testButton.textContent = 'Test Speech';
+	testButton.style.cssText = 'position:fixed;bottom:10px;right:10px;';
+	testButton.onclick = () => speak('Testing calculator voice');
+	document.body.appendChild(testButton);
 });
