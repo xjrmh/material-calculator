@@ -108,12 +108,30 @@ body {
   color: #ffffff;
 }
 
+.btn.random {
+  background: #fafafa;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.btn.random:hover {
+  background: #eeeeee;
+}
+
+#simple-calc .btn.random {
+  grid-column: span 1;
+}
+
 #simple-calc .btn.equals {
-  grid-column: span 4;
+  grid-column: span 3;
+}
+
+#scientific-calc .btn.random {
+  grid-column: span 1;
 }
 
 #scientific-calc .btn.equals {
-  grid-column: span 6;
+  grid-column: span 5;
 }
 
 .btn.clear {

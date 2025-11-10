@@ -27,11 +27,36 @@ document.addEventListener('DOMContentLoaded', () => {
 		}
 	};
 	
+	// Function to format numbers with thousand delimiters
+	function formatNumber(value) {
+		if (!value || value === '0') return '0';
+		
+		// Handle error messages
+		if (value === 'Error' || isNaN(value)) return value;
+		
+		const num = parseFloat(value);
+		if (isNaN(num)) return value;
+		
+		// Format with thousand separators
+		// Use toLocaleString for proper formatting
+		// Preserve precision for scientific calculations
+		const parts = value.toString().split('.');
+		const integerPart = parts[0];
+		const decimalPart = parts[1] || '';
+		
+		// Add commas to integer part
+		const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+		
+		// Combine with decimal part if exists
+		return decimalPart ? formattedInteger + '.' + decimalPart : formattedInteger;
+	}
+	
 	// Function to sync displays across calculators
 	function updateDisplays() {
-		// Update result displays
-		displays.simple.result.textContent = calculatorState.current || '0';
-		displays.scientific.result.textContent = calculatorState.current || '0';
+		// Update result displays with formatted numbers
+		const formattedValue = formatNumber(calculatorState.current) || '0';
+		displays.simple.result.textContent = formattedValue;
+		displays.scientific.result.textContent = formattedValue;
 		
 		// Update formula displays
 		const formulaText = getFormulaText();
@@ -43,7 +68,7 @@ document.addEventListener('DOMContentLoaded', () => {
 	function getFormulaText() {
 		let text = '';
 		if (calculatorState.operand !== '') {
-			text += calculatorState.operand;
+			text += formatNumber(calculatorState.operand);
 		}
 		if (calculatorState.operator !== '') {
 			text += ' ' + (
@@ -56,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
 			);
 		}
 		if (calculatorState.current !== '') {
-			text += ' ' + calculatorState.current;
+			text += ' ' + formatNumber(calculatorState.current);
 		}
 		return text || '0';
 	}
@@ -128,10 +153,6 @@ document.addEventListener('DOMContentLoaded', () => {
 		
 		if (preferredVoice) {
 			console.log('Selected voice:', preferredVoice.name);
-			// Test the voice immediately
-			const test = new SpeechSynthesisUtterance('Calculator ready');
-			test.voice = preferredVoice;
-			synth.speak(test);
 		} else {
 			console.warn('No suitable voice found');
 		}
@@ -179,7 +200,8 @@ document.addEventListener('DOMContentLoaded', () => {
 			'mc': 'memory clear',
 			'm+': 'memory plus',
 			'm-': 'memory minus',
-			'mr': 'memory recall'
+			'mr': 'memory recall',
+			'random': 'random calculation'
 		};
 		return valueMap[val] || val;
 	}
@@ -188,12 +210,13 @@ document.addEventListener('DOMContentLoaded', () => {
 	function evaluateScientific(expression) {
 		try {
 			// Replace scientific functions and constants
+			// Be careful to replace constants only when they appear as standalone values
 			expression = expression
 				.replace(/π/g, 'Math.PI')
-				.replace(/e/g, 'Math.E')
-				.replace(/sin\(/g, `Math.${isRadians ? 'sin' : 'sin'}(`)
-				.replace(/cos\(/g, `Math.${isRadians ? 'cos' : 'cos'}(`)
-				.replace(/tan\(/g, `Math.${isRadians ? 'tan' : 'tan'}(`)
+				.replace(/\be\b/g, 'Math.E')  // Only replace 'e' as a standalone constant
+				.replace(/sin\(/g, 'Math.sin(')
+				.replace(/cos\(/g, 'Math.cos(')
+				.replace(/tan\(/g, 'Math.tan(')
 				.replace(/log\(/g, 'Math.log10(')
 				.replace(/sqrt\(/g, 'Math.sqrt(')
 				.replace(/2\^/g, 'Math.pow(2,');
@@ -209,26 +232,29 @@ document.addEventListener('DOMContentLoaded', () => {
 	function handleMemory(action, value = 0) {
 		switch (action) {
 			case 'mc':
-				memory = 0;
+				calculatorState.memory = 0;
 				speak('Memory cleared');
 				break;
 			case 'm+':
-				memory += parseFloat(value) || 0;
+				calculatorState.memory += parseFloat(value) || 0;
 				speak('Memory plus');
 				break;
 			case 'm-':
-				memory -= parseFloat(value) || 0;
+				calculatorState.memory -= parseFloat(value) || 0;
 				speak('Memory minus');
 				break;
 			case 'mr':
 				speak('Memory recall');
-				return memory.toString();
+				return calculatorState.memory.toString();
 		}
 		return value.toString();
 	}
 	
 	// Speak the given text with natural-sounding settings
 	function speak(text) {
+		// Remove commas from numbers for better speech
+		text = text.toString().replace(/,/g, '');
+		
 		console.log('Speaking:', text);
 		
 		// Some browsers require user interaction before allowing speech
@@ -304,14 +330,12 @@ document.addEventListener('DOMContentLoaded', () => {
 			
 			// Get the active calculator
 			const isScientific = btn.closest('#scientific-calc') !== null;
-			const activeDisplay = isScientific ? sciDisplay : display;
-			const activeFormula = isScientific ? sciFormula : formula;
+			const activeDisplays = isScientific ? displays.scientific : displays.simple;
 			if (val === 'C') {
-				current = '';
-				operator = '';
-				operand = '';
-				display.textContent = '0';
-				formula.textContent = '0';
+				calculatorState.current = '';
+				calculatorState.operator = '';
+				calculatorState.operand = '';
+				updateDisplays();
 				return;
 			}
 			if (val === '=') {
@@ -335,20 +359,113 @@ document.addEventListener('DOMContentLoaded', () => {
 				setRandomAccentColor();
 				return;
 			}
+			
+			// Handle random calculation
+			if (val === 'random') {
+				const isScientific = btn.closest('#scientific-calc') !== null;
+				let result;
+				
+				if (isScientific) {
+					// Scientific random calculations
+					const operations = [
+						() => {
+							const num = Math.floor(Math.random() * 100);
+							return { expr: `sqrt(${num})`, result: Math.sqrt(num) };
+						},
+						() => {
+							const num = Math.random() * Math.PI;
+							return { expr: `sin(${num.toFixed(4)})`, result: Math.sin(num) };
+						},
+						() => {
+							const num = Math.random() * Math.PI;
+							return { expr: `cos(${num.toFixed(4)})`, result: Math.cos(num) };
+						},
+						() => {
+							const num = Math.floor(Math.random() * 100) + 1;
+							return { expr: `log(${num})`, result: Math.log10(num) };
+						},
+						() => {
+							const num = Math.floor(Math.random() * 20) + 1;
+							return { expr: `${num}²`, result: num * num };
+						},
+						() => {
+							const num1 = Math.floor(Math.random() * 100);
+							const num2 = Math.floor(Math.random() * 100);
+							const ops = ['+', '-', '*', '/'];
+							const op = ops[Math.floor(Math.random() * ops.length)];
+							return { expr: `${num1} ${op} ${num2}`, result: eval(`${num1}${op}${num2}`) };
+						}
+					];
+					const operation = operations[Math.floor(Math.random() * operations.length)]();
+					result = operation.result;
+					speak(`Random calculation: ${operation.expr} equals ${result.toFixed(4)}`);
+				} else {
+					// Simple random calculations
+					const num1 = Math.floor(Math.random() * 1000);
+					const num2 = Math.floor(Math.random() * 1000);
+					const operations = [
+						{ op: '+', calc: num1 + num2, symbol: 'plus' },
+						{ op: '-', calc: num1 - num2, symbol: 'minus' },
+						{ op: '*', calc: num1 * num2, symbol: 'times' },
+						{ op: '/', calc: num1 / num2, symbol: 'divided by' }
+					];
+					const selected = operations[Math.floor(Math.random() * operations.length)];
+					result = selected.calc;
+					speak(`Random calculation: ${num1} ${selected.symbol} ${num2} equals ${result.toFixed(2)}`);
+				}
+				
+				calculatorState.current = result.toString();
+				calculatorState.operator = '';
+				calculatorState.operand = '';
+				updateDisplays();
+				setRandomAccentColor();
+				return;
+			}
 			// Handle scientific functions
 			if (['sin', 'cos', 'tan', 'log', 'sqrt'].includes(val)) {
-				if (current === '') {
-					current = activeDisplay.textContent;
+				if (calculatorState.current === '') {
+					calculatorState.current = activeDisplays.result.textContent;
 				}
-				operand = val + '(' + current + ')';
-				current = '';
-				updateFormula(activeFormula, operand, operator, current);
+				// Immediately evaluate the scientific function
+				const expression = val + '(' + calculatorState.current + ')';
+				const result = evaluateScientific(expression);
+				if (result !== 'Error') {
+					speak(result.toString());
+					calculatorState.current = result.toString();
+					calculatorState.operator = '';
+					calculatorState.operand = '';
+				} else {
+					speak('Error');
+				}
+				updateDisplays();
+				return;
+			}
+			
+			// Handle x² (square function)
+			if (val === '2^') {
+				if (calculatorState.current === '') {
+					calculatorState.current = activeDisplays.result.textContent;
+				}
+				const num = parseFloat(calculatorState.current);
+				const result = num * num;
+				speak(result.toString());
+				calculatorState.current = result.toString();
+				calculatorState.operator = '';
+				calculatorState.operand = '';
+				updateDisplays();
 				return;
 			}
 			
 			// Handle constants
 			if (['pi', 'e'].includes(val)) {
-				calculatorState.current += val === 'pi' ? 'π' : 'e';
+				// If there's already a number, treat constants as multiplication
+				if (calculatorState.current !== '' && calculatorState.current !== '0') {
+					calculatorState.operand = calculatorState.current;
+					calculatorState.operator = '*';
+					calculatorState.current = val === 'pi' ? Math.PI.toString() : Math.E.toString();
+				} else {
+					calculatorState.current = val === 'pi' ? Math.PI.toString() : Math.E.toString();
+				}
 				updateDisplays();
 				return;
 			}
@@ -360,7 +477,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				return;
 			}
 			
-			if (['+', '-', '*', '/', '2^'].includes(val)) {
+			if (['+', '-', '*', '/'].includes(val)) {
 				if (calculatorState.current === '') {
 					calculatorState.operand = displays.simple.result.textContent;
 				} else {
@@ -371,7 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
 				updateDisplays();
 				return;
 			}
-			if (val === '.' && current.includes('.')) {
+			if (val === '.' && calculatorState.current.includes('.')) {
 				return;
 			}
 			calculatorState.current += val;
@@ -380,11 +497,48 @@ document.addEventListener('DOMContentLoaded', () => {
 	});
 
 	document.addEventListener('keydown', (event) => {
+		// Handle Enter key
 		if (event.key === 'Enter') {
 			const equalsBtn = document.querySelector('.btn.equals');
 			if (equalsBtn) {
 				equalsBtn.click();
 			}
+			return;
+		}
+		
+		// Handle number keys
+		if (event.key >= '0' && event.key <= '9') {
+			const btn = document.querySelector(`.btn[data-value="${event.key}"]`);
+			if (btn) {
+				btn.click();
+			}
+			return;
+		}
+		
+		// Handle operators
+		const operatorMap = {
+			'+': '+',
+			'-': '-',
+			'*': '*',
+			'/': '/',
+			'.': '.'
+		};
+		
+		if (operatorMap[event.key]) {
+			const btn = document.querySelector(`.btn[data-value="${operatorMap[event.key]}"]`);
+			if (btn) {
+				btn.click();
+			}
+			return;
+		}
+		
+		// Handle Clear (Escape or c key)
+		if (event.key === 'Escape' || event.key.toLowerCase() === 'c') {
+			const clearBtn = document.querySelector('.btn[data-value="C"]');
+			if (clearBtn) {
+				clearBtn.click();
+			}
+			return;
 		}
 	});
 });
